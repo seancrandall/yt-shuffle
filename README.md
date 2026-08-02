@@ -2,7 +2,7 @@
 
 A native desktop YouTube playlist randomizer with an embedded player and full-coverage shuffle.
 
-**Version:** 0.1.0 · **License:** MIT
+**Version:** 0.2.0 · **License:** MIT
 
 ## What this is
 
@@ -20,9 +20,16 @@ the web tool at https://youtube-playlist-randomizer.bitbucket.io/, but as a nati
 ## Features
 
 - Paste a YouTube playlist URL or ID to load it.
+- **Saved playlists:** previously-loaded playlists are remembered by name in a dropdown for
+  one-click recall, and a **Playlist Manager** (Manage…) lets you add, delete, and reorder them.
 - Full-coverage shuffle (every video is reached once before repeats).
 - Search/filter within the loaded list.
 - Embedded YouTube player (Chromium via QtWebEngine).
+- **Resolution selector:** 360p / 720p / 1080p / 1440p, plus **Cinema mode** (theater layout +
+  best-available quality). Note: YouTube caps embedded quality by the player's on-screen size, so
+  1080p/1440p only actually arrive when the player is large — Cinema mode and fullscreen enable it.
+- **Fullscreen:** press **F11** to toggle full-window fullscreen (chrome hidden). **Esc** exits
+  fullscreen, then exits Cinema mode.
 - Auto-advance to the next video when one ends (toggleable, remembered between runs).
 - The playlist is displayed in the shuffled playback order, with thumbnails; the now-playing
   row is highlighted as playback advances.

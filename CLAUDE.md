@@ -99,11 +99,28 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   forwards it to `MainWindow.on_current_changed`, which selects the matching row in the list.
   `playVideo(id)` jumps to that id *within* the existing shuffled list (preserving order) so
   next/prev and auto-advance continue through the full playlist after a manual row click.
+- **Saved playlists + manager:** `settings.py` persists a `playlists` list of `{id, name, url}`
+  (add/remove/rename/move helpers) and a `resolution` preference. The playlist input is an
+  editable `QComboBox`: dropdown items are saved playlists shown by **name** (id as item data);
+  picking one loads it by id (`_load_history_item`), typing a URL/ID + Enter/Load loads it as new.
+  `LoadThread` parses the id once, fetches videos **and** the playlist title (`api.fetch_playlist_meta`
+  → `playlists.list?part=snippet`) over one shared `httpx.Client`, and emits `(videos, id, name)`;
+  `_on_loaded` saves it to history and refreshes the combo. `manager.PlaylistManagerDialog`
+  (opened from the "Manage…" button) does add/delete/reorder and writes back via `set_playlists`.
+- **Resolution + cinema + fullscreen:** `player.html` keeps a `currentQuality` and exposes
+  `window.setQuality(q)` → `player.setPlaybackQualityRange(...)` (`medium`/`hd720`/`hd1080`/
+  `hd1440` pinned, `cinema` = `("small","highres")` best-available), re-asserted in `onReady` and
+  after every `loadVideoById` (the IFrame player resets quality per video). `PlayerView.set_quality`
+  plumbs it. A toolbar `QComboBox` drives `on_quality_changed`, which persists the choice
+  (`settings.set_resolution`) and, for **Cinema mode**, hides chrome via `_set_chrome_visible`
+  (top bar + controls + list) so the player fills the window — the larger player is what lets
+  YouTube actually serve 1080p/1440p. **F11** toggles `showFullScreen`/`showNormal`;
+  **Esc** exits fullscreen then cinema. `_apply_layout` hides chrome iff fullscreen or cinema.
 
 Cross-cutting details worth knowing:
-- `api.fetch_playlist` accepts an injected `httpx.Client` (used in tests with `httpx.MockTransport`
-  keyed by the `pageToken` query param). Don't add network calls that bypass this seam if you want
-  them testable.
+- `api.fetch_playlist` and `api.fetch_playlist_meta` both accept an injected `httpx.Client`
+  (used in tests with `httpx.MockTransport` keyed by the `pageToken` / `id` query param). Don't
+  add network calls that bypass this seam if you want them testable.
 - `playlist.Video` is a frozen dataclass — pass it around by value, never mutate.
 - Search (`playlist.search`) only filters the *display* model; it does not change the player's
   shuffled order. Next/prev always walk the full shuffled order.
