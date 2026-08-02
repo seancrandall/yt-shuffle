@@ -10,6 +10,7 @@ import httpx
 from PySide6.QtCore import QSize, Qt, QThread, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QHBoxLayout,
@@ -41,6 +42,18 @@ from .settings import (
 )
 
 CONSOLE_URL = "https://console.cloud.google.com/apis/library/youtube.googleapis.com"
+
+# Player pixel size targeted per quality. YouTube caps embedded quality by the player's
+# on-screen size, so selecting a resolution resizes the window to give the player (close to)
+# these dimensions — clamped to the available screen. The player shares vertical space with
+# the playlist list (stretch 3:2) plus the top bar and controls, so the window is sized taller
+# than the raw resolution so the *player* reaches it.
+QUALITY_PLAYER_SIZE = {
+    "medium": (640, 360),
+    "hd720": (1280, 720),
+    "hd1080": (1920, 1080),
+    "hd1440": (2560, 1440),
+}
 
 
 class LoadThread(QThread):
@@ -85,8 +98,12 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
 
         self._top_bar = QWidget()
-        top = QHBoxLayout(self._top_bar)
+        top = QVBoxLayout(self._top_bar)
         top.setContentsMargins(0, 0, 0, 0)
+        top.setSpacing(4)
+
+        # Row 1 — playlist entry + load/manage (the primary action).
+        row1 = QHBoxLayout()
         self.playlist_input = QComboBox()
         self.playlist_input.setEditable(True)
         self.playlist_input.setInsertPolicy(QComboBox.NoInsert)
@@ -99,6 +116,14 @@ class MainWindow(QMainWindow):
         self.load_btn.clicked.connect(self.on_load)
         self.manage_btn = QPushButton("Manage…")
         self.manage_btn.clicked.connect(self._open_manager)
+        row1.addWidget(QLabel("Playlist:"))
+        row1.addWidget(self.playlist_input, 1)
+        row1.addWidget(self.load_btn)
+        row1.addWidget(self.manage_btn)
+        top.addLayout(row1)
+
+        # Row 2 — secondary controls, on their own line so the bar fits portrait widths.
+        row2 = QHBoxLayout()
         self.reshuffle_btn = QPushButton("Shuffle")
         self.reshuffle_btn.clicked.connect(self.on_reshuffle)
         self.search_input = QLineEdit()
@@ -117,15 +142,12 @@ class MainWindow(QMainWindow):
         ):
             self.quality_combo.addItem(label, key)
         self.quality_combo.currentIndexChanged.connect(self.on_quality_changed)
-        top.addWidget(QLabel("Playlist:"))
-        top.addWidget(self.playlist_input, 3)
-        top.addWidget(self.load_btn)
-        top.addWidget(self.manage_btn)
-        top.addWidget(self.reshuffle_btn)
-        top.addWidget(self.search_input, 2)
-        top.addWidget(self.auto_advance_cb)
-        top.addWidget(QLabel("Quality:"))
-        top.addWidget(self.quality_combo)
+        row2.addWidget(self.reshuffle_btn)
+        row2.addWidget(self.search_input, 1)
+        row2.addWidget(self.auto_advance_cb)
+        row2.addWidget(QLabel("Quality:"))
+        row2.addWidget(self.quality_combo)
+        top.addLayout(row2)
         root.addWidget(self._top_bar)
 
         self.player = PlayerView()
@@ -331,14 +353,37 @@ class MainWindow(QMainWindow):
                 return
 
     def on_quality_changed(self, _index: int) -> None:
-        """Apply the chosen resolution; cinema mode also hides chrome for a big player."""
+        """Apply the chosen resolution; cinema mode hides chrome for a big player, the numeric
+        tiers resize the window so the player is large enough for YouTube to serve that quality."""
         key = self.quality_combo.currentData()
         if not key:
             return
         self._cinema = key == "cinema"
         set_resolution(key)
         self.player.set_quality(key)
+        if key != "cinema":
+            self._resize_for_quality(key)
         self._apply_layout()
+
+    def _resize_for_quality(self, key: str) -> None:
+        """Resize the window so the player reaches the chosen resolution's size, clamped to
+        the available screen (so it still fits a small/portrait display)."""
+        if self.isFullScreen():
+            return
+        target = QUALITY_PLAYER_SIZE.get(key)
+        if not target:
+            return
+        res_w, res_h = target
+        # Player shares vertical space with the playlist list (stretch 3:2) plus the two
+        # control rows (~80px), so make the window tall enough that the *player* hits res_h.
+        window_w = res_w + 24
+        window_h = int(res_h * 5 / 3) + 90
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is not None:
+            avail = screen.availableGeometry()
+            window_w = min(window_w, avail.width())
+            window_h = min(window_h, avail.height())
+        self.resize(window_w, window_h)
 
     def on_toggle_fullscreen(self) -> None:
         if self.isFullScreen():
