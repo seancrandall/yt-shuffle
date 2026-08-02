@@ -4,10 +4,22 @@ from __future__ import annotations
 
 import os
 import sys
+from importlib.resources import files
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from .app import MainWindow
+
+
+def _app_icon() -> QIcon:
+    """The bundled app icon (icons/youtube-mixer.png), shipped as package data so
+    it's available in a non-editable install, not just when running from source."""
+    try:
+        path = files("youtube_mixer").joinpath("icons/youtube-mixer.png")
+        return QIcon(str(path))
+    except Exception:  # noqa: BLE001 — never fail to start over a missing icon
+        return QIcon()
 
 
 def main() -> None:
@@ -34,6 +46,7 @@ def main() -> None:
     )
     app = QApplication(sys.argv)
     app.setApplicationName("YouTube Randomizer")
+    app.setWindowIcon(_app_icon())
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

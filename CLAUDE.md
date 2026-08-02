@@ -45,10 +45,19 @@ config dir (`~/.config/youtube-mixer/config.json` on Linux). See README for how 
 
 `scripts/install.sh` builds a **separate, dedicated venv** at
 `~/.local/share/youtube-mixer/venv` (not the dev `.venv`), installs the app non-editable, installs
-`resources/icon.svg`, and writes `~/.local/share/applications/youtube-mixer.desktop` whose `Exec`
-is `scripts/youtube-mixer-launch.sh`. That wrapper derives the project dir from its own location,
+the icon (`icons/youtube-mixer.png` → `~/.local/share/youtube-mixer/icon.png`), and writes
+`~/.local/share/applications/youtube-mixer.desktop` whose `Exec` is
+`scripts/youtube-mixer-launch.sh`. That wrapper derives the project dir from its own location,
 recreates the venv + reinstalls the app if missing (self-healing), then execs the venv
 `youtube-mixer` entry — so the menu entry is fully self-contained.
+
+The app icon is `icons/youtube-mixer.png` (repo root, the canonical source the user edits and
+the `.desktop` file points at). A byte-identical copy is bundled into the package at
+`src/youtube_mixer/icons/youtube-mixer.png` (declared in `[tool.setuptools.package-data]`) so the
+runtime **window icon** resolves in a non-editable install — the launcher ships the package only,
+not the top-level `icons/` dir, so the window icon must live inside the package. `main.py` loads
+it via `importlib.resources` and sets it with `app.setWindowIcon`. `tests/test_icon.py` fails if
+the two copies drift — after editing `icons/youtube-mixer.png`, re-copy it into the package.
 
 ## Versioning
 

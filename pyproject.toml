@@ -38,7 +38,7 @@ youtube-mixer = "youtube_mixer.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-youtube_mixer = ["player.html"]
+youtube_mixer = ["player.html", "icons/youtube-mixer.png"]
 
 [tool.setuptools.dynamic]
 # Single source of truth for the version is youtube_mixer.__version__.
