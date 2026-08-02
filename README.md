@@ -42,6 +42,28 @@ the web tool at https://youtube-playlist-randomizer.bitbucket.io/, but as a nati
   enable "YouTube Data API v3", then create an API key under *Credentials*. The free quota
   (10,000 units/day; ~1 unit per 50 playlist items) is plenty for personal use.
 
+## Install (desktop launcher)
+
+To install as a normal desktop application (shows up in your application menu, launches from
+its own self-contained venv):
+
+```bash
+bash scripts/install.sh
+```
+
+This creates a dedicated venv under `~/.local/share/youtube-mixer/venv`, installs the app into
+it (non-editable, so it doesn't depend on the source tree at run time), installs the icon, and
+writes a `.desktop` launcher to `~/.local/share/applications/youtube-mixer.desktop`. Re-run the
+script to upgrade to the current source.
+
+The launcher (`scripts/youtube-mixer-launch.sh`) is self-contained: if its venv is missing it
+recreates it and reinstalls the app, so the menu entry keeps working even after the venv is
+deleted. You can also launch directly:
+
+```bash
+bash scripts/youtube-mixer-launch.sh
+```
+
 ## Install (development)
 
 ```bash

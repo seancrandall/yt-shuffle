@@ -35,10 +35,20 @@ ruff check .                        # lint
 
 # cut a release (bumps version in lockstep; see Versioning below)
 python scripts/bump_version.py 0.2.0
+
+# install as a desktop app (own self-contained venv + .desktop launcher)
+bash scripts/install.sh
 ```
 
 The app needs a **YouTube Data API v3 key**, prompted on first load and stored in the OS user
 config dir (`~/.config/youtube-mixer/config.json` on Linux). See README for how to get one.
+
+`scripts/install.sh` builds a **separate, dedicated venv** at
+`~/.local/share/youtube-mixer/venv` (not the dev `.venv`), installs the app non-editable, installs
+`resources/icon.svg`, and writes `~/.local/share/applications/youtube-mixer.desktop` whose `Exec`
+is `scripts/youtube-mixer-launch.sh`. That wrapper derives the project dir from its own location,
+recreates the venv + reinstalls the app if missing (self-healing), then execs the venv
+`youtube-mixer` entry — so the menu entry is fully self-contained.
 
 ## Versioning
 
