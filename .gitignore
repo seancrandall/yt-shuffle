@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Claude Code local settings (per-machine)
+.claude/settings.local.json
+
+# Local env / secrets
+.env
+.env.*
+
+# PyInstaller
+*.spec
+
+# Qt / runtime artifacts
+*.qmlc
+*.qmltc
