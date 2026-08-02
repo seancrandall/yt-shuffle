@@ -9,25 +9,37 @@
 </head>
 <body>
   <div id="player"></div>
+  <!-- YouTube IFrame Player API -->
   <script src="https://www.youtube.com/iframe_api"></script>
+  <!-- Qt WebChannel bridge (lets JS call back into the native PlayerView) -->
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
   <script>
-    // The native side calls window.playVideo / playList / next / prev via runJavaScript.
-    // The YouTube IFrame API loads asynchronously, so we queue calls until the player is ready.
+    // The native side drives playback via window.playVideo / playList / next / prev
+    // (runJavaScript). JS reports the now-playing video back to native via the bridge's
+    // currentChanged(id), and auto-advances to the next shuffled video when one ends.
     let player = null;
     let ready = false;
     const pending = [];
     let currentIds = [];
     let currentIndex = 0;
+    let bridge = null;
 
     function whenReady(fn) {
       if (ready) { try { fn(); } catch (e) { console.error(e); } }
       else { pending.push(fn); }
     }
 
+    function notifyCurrent() {
+      if (bridge && currentIds.length) {
+        try { bridge.currentChanged(currentIds[currentIndex]); } catch (e) { console.error(e); }
+      }
+    }
+
     function playIndex(i) {
       if (!currentIds.length) return;
       currentIndex = (i + currentIds.length) % currentIds.length;
       player.loadVideoById(currentIds[currentIndex]);
+      notifyCurrent();
     }
 
     window.onYouTubeIframeAPIReady = function () {
@@ -35,16 +47,36 @@
         width: "100%",
         height: "100%",
         playerVars: { autoplay: 0, controls: 1, rel: 0 },
-        events: { onReady: () => {
-          ready = true;
-          const q = pending.splice(0, pending.length);
-          q.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
-        } },
+        events: {
+          onReady: () => {
+            ready = true;
+            const q = pending.splice(0, pending.length);
+            q.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
+          },
+          // Auto-advance: when a video finishes, move to the next in the shuffled order.
+          onStateChange: (e) => {
+            if (e.data === YT.PlayerState.ENDED) {
+              playIndex(currentIndex + 1);
+            }
+          },
+        },
       });
     };
 
+    // Jump to a specific video, keeping the rest of the list intact so next/prev and
+    // auto-advance continue through the shuffled order (used for row clicks).
     window.playVideo = function (id) {
-      whenReady(() => { currentIds = [id]; currentIndex = 0; player.loadVideoById(id); });
+      whenReady(() => {
+        const idx = currentIds.indexOf(id);
+        if (idx >= 0) {
+          currentIndex = idx;
+        } else {
+          currentIds = [id];
+          currentIndex = 0;
+        }
+        player.loadVideoById(id);
+        notifyCurrent();
+      });
     };
 
     window.playList = function (ids, index) {
@@ -55,6 +87,13 @@
 
     window.next = function () { whenReady(() => playIndex(currentIndex + 1)); };
     window.prev = function () { whenReady(() => playIndex(currentIndex - 1)); };
+
+    // Set up the QWebChannel bridge to the native side.
+    if (typeof qt !== "undefined") {
+      new QWebChannel(qt.webChannelTransport, function (channel) {
+        bridge = channel.objects.bridge;
+      });
+    }
   </script>
 </body>
 </html>

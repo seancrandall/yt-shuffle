@@ -4,23 +4,45 @@ Loads ``player.html`` (bundled as package data), which hosts the YouTube IFrame 
 Native code drives playback by calling ``window.playVideo`` / ``playList`` / ``next`` / ``prev``
 through ``runJavaScript``. Calls made before the page finishes loading are buffered and flushed
 on ``loadFinished``; the page itself queues calls until the IFrame API player is ready.
+
+The page auto-advances to the next shuffled video when one ends, and reports the now-playing
+video id back to native via a QtWebChannel bridge (``currentChanged`` signal), so the UI can
+highlight the current row.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 _PLAYER_HTML = Path(__file__).parent / "player.html"
 
 
+class _PlayerBridge(QObject):
+    """Object exposed to the page's JS via QWebChannel (registered as 'bridge')."""
+
+    currentChanged = Signal(str)
+
+
 class PlayerView(QWebEngineView):
+    # Emitted by the page whenever the now-playing video changes (load, next, prev, auto-advance).
+    currentChanged = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._ready = False
         self._pending: list[str] = []
+
+        self._bridge = _PlayerBridge(self)
+        self._bridge.currentChanged.connect(self.currentChanged)
+
+        channel = QWebChannel(self)
+        channel.registerObject("bridge", self._bridge)
+        self.page().setWebChannel(channel)
+
         self.loadFinished.connect(self._on_load_finished)
         self.load(QUrl.fromLocalFile(str(_PLAYER_HTML)))
 

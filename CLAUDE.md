@@ -54,6 +54,13 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   Python drives playback via `page.runJavaScript(...)` calling `window.playVideo` /
   `playList` / `next` / `prev`. Calls before page load are buffered in Python; the page itself
   queues calls until the IFrame API player is ready (two-stage buffering).
+- **Auto-advance + current-track signaling:** the page auto-advances to the next shuffled video
+  on the IFrame API's `onStateChange` ENDED event (JS-side, no Python round-trip). A `QtWebChannel`
+  bridge (`_PlayerBridge` registered as `"bridge"`) lets the page call back
+  `bridge.currentChanged(videoId)` whenever the now-playing video changes; `PlayerView.currentChanged`
+  forwards it to `MainWindow.on_current_changed`, which selects the matching row in the list.
+  `playVideo(id)` jumps to that id *within* the existing shuffled list (preserving order) so
+  next/prev and auto-advance continue through the full playlist after a manual row click.
 
 Cross-cutting details worth knowing:
 - `api.fetch_playlist` accepts an injected `httpx.Client` (used in tests with `httpx.MockTransport`

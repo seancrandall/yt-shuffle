@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from .api import YouTubeError, fetch_playlist
-from .models import PlaylistModel
+from .models import ID_ROLE, PlaylistModel
 from .player import PlayerView
 from .playlist import Video, search, shuffle
 from .settings import get_api_key, set_api_key
@@ -99,6 +99,9 @@ class MainWindow(QMainWindow):
         self.list_view.clicked.connect(self.on_row_clicked)
         root.addWidget(self.list_view, 2)
 
+        # Highlight the now-playing row as the player advances (manual or auto-advance).
+        self.player.currentChanged.connect(self.on_current_changed)
+
     def _api_key(self) -> str | None:
         key = get_api_key()
         if key:
@@ -162,3 +165,10 @@ class MainWindow(QMainWindow):
         v = self._model.video_at(index.row())
         if v:
             self.player.play_video(v.id)
+
+    def on_current_changed(self, video_id: str) -> None:
+        """Select the now-playing row in the list (if currently visible)."""
+        for i in range(self._model.rowCount()):
+            if self._model.data(self._model.index(i, 0), ID_ROLE) == video_id:
+                self.list_view.setCurrentIndex(self._model.index(i, 0))
+                return
