@@ -6,9 +6,11 @@ responsive; the resulting videos are shuffled (full-coverage Fisher–Yates) bef
 
 from __future__ import annotations
 
+import httpx
 from PySide6.QtCore import QSize, QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -21,17 +23,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .api import YouTubeError, fetch_playlist
+from .api import YouTubeError, fetch_playlist, fetch_playlist_meta, parse_playlist_id
 from .models import ID_ROLE, PlaylistModel
 from .player import PlayerView
 from .playlist import Video, search, shuffle
-from .settings import get_api_key, get_auto_advance, set_api_key, set_auto_advance
+from .settings import (
+    add_playlist,
+    get_api_key,
+    get_auto_advance,
+    get_playlists,
+    set_api_key,
+    set_auto_advance,
+)
 
 CONSOLE_URL = "https://console.cloud.google.com/apis/library/youtube.googleapis.com"
 
 
 class LoadThread(QThread):
-    videos_ready = Signal(list)
+    videos_ready = Signal(list, str, str)  # videos, playlist_id, name
     failed = Signal(str)
 
     def __init__(self, playlist_input: str, api_key: str, parent=None):
@@ -41,8 +50,14 @@ class LoadThread(QThread):
 
     def run(self) -> None:
         try:
-            videos = fetch_playlist(self._input, self._key)
-            self.videos_ready.emit(videos)
+            playlist_id = parse_playlist_id(self._input)
+            client = httpx.Client(timeout=30.0)
+            try:
+                videos = fetch_playlist(playlist_id, self._key, client=client)
+                name = fetch_playlist_meta(playlist_id, self._key, client=client)
+            finally:
+                client.close()
+            self.videos_ready.emit(videos, playlist_id, name)
         except YouTubeError as e:
             self.failed.emit(str(e))
         except Exception as e:  # noqa: BLE001 — surface any failure to the UI
@@ -57,6 +72,7 @@ class MainWindow(QMainWindow):
         self._order: list[Video] = []
         self._model = PlaylistModel(self)
         self._thread: LoadThread | None = None
+        self._pending_input: str = ""
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -65,9 +81,14 @@ class MainWindow(QMainWindow):
         root = QVBoxLayout(central)
 
         top = QHBoxLayout()
-        self.playlist_input = QLineEdit()
-        self.playlist_input.setPlaceholderText("Paste a YouTube playlist URL or ID…")
-        self.playlist_input.returnPressed.connect(self.on_load)
+        self.playlist_input = QComboBox()
+        self.playlist_input.setEditable(True)
+        self.playlist_input.setInsertPolicy(QComboBox.NoInsert)
+        self.playlist_input.lineEdit().setPlaceholderText("Paste a YouTube playlist URL or ID…")
+        self.playlist_input.lineEdit().returnPressed.connect(self.on_load)
+        # Picking a saved playlist from the dropdown loads it directly by id.
+        self.playlist_input.activated.connect(self._load_history_item)
+        self._refresh_playlist_combo()
         self.load_btn = QPushButton("Load")
         self.load_btn.clicked.connect(self.on_load)
         self.reshuffle_btn = QPushButton("Shuffle")
@@ -129,26 +150,57 @@ class MainWindow(QMainWindow):
         return None
 
     def on_load(self) -> None:
-        text = self.playlist_input.text().strip()
+        """Load from the combo's typed text (a pasted URL or bare playlist ID)."""
+        text = self.playlist_input.currentText().strip()
         if not text:
             return
+        self._start_load(text)
+
+    def _load_history_item(self, index: int) -> None:
+        """Load a saved playlist chosen from the dropdown (by its stored id)."""
+        pid = self.playlist_input.itemData(index)
+        if not pid:
+            return
+        self._start_load(pid)
+
+    def _refresh_playlist_combo(self, select_id: str | None = None) -> None:
+        """Rebuild the combo's saved-playlist items (text=name, data=id)."""
+        self.playlist_input.blockSignals(True)
+        typed = self.playlist_input.currentText()
+        self.playlist_input.clear()
+        for p in get_playlists():
+            self.playlist_input.addItem(p["name"], p["id"])
+        if select_id is not None:
+            idx = self.playlist_input.findData(select_id)
+            if idx >= 0:
+                self.playlist_input.setCurrentIndex(idx)
+        else:
+            self.playlist_input.setEditText(typed)
+        self.playlist_input.blockSignals(False)
+
+    def _start_load(self, playlist_input: str) -> None:
         key = self._api_key()
         if not key:
             QMessageBox.warning(
                 self, "No API key", "A YouTube Data API key is required to load playlists."
             )
             return
+        self._pending_input = playlist_input
         self.load_btn.setEnabled(False)
-        self._thread = LoadThread(text, key, self)
+        self._thread = LoadThread(playlist_input, key, self)
         self._thread.videos_ready.connect(self._on_loaded)
         self._thread.failed.connect(self._on_failed)
         self._thread.start()
 
-    def _on_loaded(self, videos: list) -> None:
+    def _on_loaded(self, videos: list, playlist_id: str, name: str) -> None:
         self.load_btn.setEnabled(True)
         if not videos:
             QMessageBox.information(self, "Empty", "No videos found in that playlist.")
             return
+        # Save to history (deduped by id) and reflect it in the combo by name.
+        url = self._pending_input if "://" in self._pending_input else None
+        add_playlist(playlist_id, name or playlist_id, url=url)
+        self._refresh_playlist_combo(select_id=playlist_id)
         self._order = shuffle(videos)
         self._apply_order()
 
