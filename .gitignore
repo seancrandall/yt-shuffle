@@ -1,38 +1,60 @@
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
-*.egg-info/
-.eggs/
+*$py.class
+*.so
+*.dylib
+
+# Packaging / build artifacts
 build/
 dist/
+*.egg
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+pip-log.txt
 
 # Virtual environments
 .venv/
 venv/
 env/
+ENV/
 
-# Tooling caches
+# ---- Tooling caches ----
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
+.tox/
 
-# Editor / OS
+# ---- Editor / IDE ----
 .vscode/
 .idea/
+.fleet/
+*.swp
+*.swo
+*~
+
+# ---- OS ----
 .DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
-# Claude Code local settings (per-machine)
-.claude/settings.local.json
-
-# Local env / secrets
+# ---- Secrets / local env ----
 .env
 .env.*
 
-# PyInstaller
-*.spec
+# ---- Claude Code (per-machine local settings) ----
+.claude/settings.local.json
 
-# Qt / runtime artifacts
+# ---- Logs / runtime ----
+*.log
+
+# ---- Qt runtime artifacts ----
 *.qmlc
 *.qmltc

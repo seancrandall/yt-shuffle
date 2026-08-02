@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "youtube-mixer"
-version = "0.1.0"
 description = "A native desktop YouTube playlist randomizer with full-coverage shuffle."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
+dynamic = ["version"]
 authors = [{ name = "Sean Crandall" }]
 keywords = ["youtube", "playlist", "shuffle", "randomizer", "pyside6", "qt"]
 classifiers = [
@@ -39,6 +39,10 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 youtube_mixer = ["player.html"]
+
+[tool.setuptools.dynamic]
+# Single source of truth for the version is youtube_mixer.__version__.
+version = { attr = "youtube_mixer.__version__" }
 
 [tool.ruff]
 line-length = 100

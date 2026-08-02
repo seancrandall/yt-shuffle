@@ -1,28 +1,39 @@
 # YouTube Randomizer
 
-A native desktop YouTube playlist randomizer. Built because YouTube's built-in playlist
-shuffle is broken for long playlists — it tends to grab ~10 videos and loop them instead of
-covering the whole list. This app fetches the full playlist and does a real **Fisher–Yates
-shuffle** so every video plays once before any repeats.
+A native desktop YouTube playlist randomizer with an embedded player and full-coverage shuffle.
 
-Inspired by https://youtube-playlist-randomizer.bitbucket.io/, but as a native app with an
-embedded player.
+**Version:** 0.1.0 · **License:** MIT
+
+## What this is
+
+A small native desktop app (Python + PySide6/Qt, with an embedded Chromium web player) that
+loads a YouTube playlist, shuffles the **entire** list, and plays it back in that order with
+auto-advance.
+
+## Why
+
+YouTube's built-in playlist shuffle is broken for long playlists: it tends to grab about ten
+videos and loop them, instead of covering the whole list. This app fetches the full playlist and
+does a real **Fisher–Yates shuffle** so every video plays once before any repeats. Inspired by
+the web tool at https://youtube-playlist-randomizer.bitbucket.io/, but as a native app.
 
 ## Features
 
 - Paste a YouTube playlist URL or ID to load it.
-- Full-coverage shuffle (every video reached once before repeats).
+- Full-coverage shuffle (every video is reached once before repeats).
 - Search/filter within the loaded list.
 - Embedded YouTube player (Chromium via QtWebEngine).
-- The playlist is displayed in the shuffled playback order.
+- Auto-advance to the next video when one ends (toggleable, remembered between runs).
+- The playlist is displayed in the shuffled playback order, with thumbnails; the now-playing
+  row is highlighted as playback advances.
 
 ## Requirements
 
 - Python 3.10+
-- A **YouTube Data API v3 key** (free). Create one at the
+- A **YouTube Data API v3 key** (free). Create one in the
   [Google Cloud Console](https://console.cloud.google.com/apis/library/youtube.googleapis.com):
-  enable the "YouTube Data API v3", then create an API key under *Credentials*. The free quota
-  (10,000 units/day; ~1 unit per 50 playlist items) is more than enough for personal use.
+  enable "YouTube Data API v3", then create an API key under *Credentials*. The free quota
+  (10,000 units/day; ~1 unit per 50 playlist items) is plenty for personal use.
 
 ## Install (development)
 
@@ -40,17 +51,37 @@ youtube-mixer          # via console script
 python -m youtube_mixer
 ```
 
-On first load, the app prompts for your YouTube Data API key, which it stores in your OS user
+On first load the app prompts for your YouTube Data API key, which it stores in your OS user
 config directory (`~/.config/youtube-mixer/config.json` on Linux).
 
 ## Tests & lint
 
 ```bash
-pytest                 # run all tests
-pytest tests/test_shuffle.py   # run a single test file
-ruff check .           # lint
+pytest                              # all tests
+pytest tests/test_shuffle.py        # single file
+pytest tests/test_shuffle.py::test_shuffle_seed_is_reproducible   # single test
+ruff check .                        # lint
+```
+
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/). While the major version is `0`
+(pre-1.0), minor bumps may include breaking changes; patches are bug fixes only.
+
+The canonical version lives in **one place**: `youtube_mixer.__version__`
+(`src/youtube_mixer/__init__.py`). `pyproject.toml` reads it dynamically, and the **Version**
+line at the top of this README must always match it — a test (`tests/test_version_sync.py`)
+fails if they drift.
+
+To cut a new release, use the bump script so the version stays in sync everywhere:
+
+```bash
+python scripts/bump_version.py 0.2.0
+# then commit and tag, e.g.:
+#   git add -A && git commit -m "Release v0.2.0"
+#   git tag v0.2.0
 ```
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). PySide6 is LGPL (compatible).

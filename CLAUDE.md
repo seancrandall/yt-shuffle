@@ -32,10 +32,23 @@ pytest                              # all tests
 pytest tests/test_shuffle.py        # single file
 pytest tests/test_shuffle.py::test_shuffle_seed_is_reproducible   # single test
 ruff check .                        # lint
+
+# cut a release (bumps version in lockstep; see Versioning below)
+python scripts/bump_version.py 0.2.0
 ```
 
 The app needs a **YouTube Data API v3 key**, prompted on first load and stored in the OS user
 config dir (`~/.config/youtube-mixer/config.json` on Linux). See README for how to get one.
+
+## Versioning
+
+Semantic Versioning, pre-1.0 convention (while major is `0`, minors may break). The version has
+a **single source of truth**: `youtube_mixer.__version__` in `src/youtube_mixer/__init__.py`.
+`pyproject.toml` reads it dynamically (`[tool.setuptools.dynamic] version = {attr = ...}`), so
+never set a literal version in `pyproject.toml`. The README's `**Version:**` line must always
+match `__version__`; `tests/test_version_sync.py` fails if the README, `__version__`, or the
+installed distribution metadata drift. To change the version, run `scripts/bump_version.py
+<x.y.z>` — it updates `__init__.py` and the README together and prints the commit/tag commands.
 
 ## Architecture
 
