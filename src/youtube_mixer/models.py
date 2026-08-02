@@ -8,7 +8,7 @@ or filtering does not refetch them.
 from __future__ import annotations
 
 from PySide6.QtCore import QAbstractListModel, QModelIndex, QSize, Qt, QUrl
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 
 from .playlist import Video
@@ -41,12 +41,17 @@ class PlaylistModel(QAbstractListModel):
         v = self._videos[index.row()]
         if role == Qt.DisplayRole:
             return f"{index.row() + 1}. {v.title}"
+        if role == Qt.DecorationRole:
+            pix = self._thumbs.get(v.id)
+            return QIcon(pix) if pix is not None else None
+        if role == Qt.ToolTipRole:
+            return v.title
         if role == THUMB_ROLE:
             return self._thumbs.get(v.id)
         if role == ID_ROLE:
             return v.id
         if role == Qt.SizeHintRole:
-            return QSize(0, 40)
+            return QSize(0, 72)
         return None
 
     def video_at(self, row: int) -> Video | None:
@@ -71,5 +76,5 @@ class PlaylistModel(QAbstractListModel):
         for i, v in enumerate(self._videos):
             if v.id == vid:
                 idx = self.index(i, 0)
-                self.dataChanged.emit(idx, idx, [THUMB_ROLE])
+                self.dataChanged.emit(idx, idx, [THUMB_ROLE, Qt.DecorationRole])
                 break

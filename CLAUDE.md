@@ -47,8 +47,12 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
 - `playlist.shuffle` does a full-coverage Fisher–Yates shuffle of the entire list (the core fix;
   optional `seed` for reproducibility). The shuffled order is the canonical playback order.
 - `PlaylistModel` (a `QAbstractListModel` in `models.py`) backs the bottom `QListView`; it exposes
-  display title + `ID_ROLE`/`THUMB_ROLE`. Thumbnails are fetched async via
-  `QNetworkAccessManager` and **cached by video ID** so re-shuffle/search does not refetch.
+  display title, `Qt.DecorationRole` (thumbnail as `QIcon`), `Qt.ToolTipRole` (full title), plus
+  `ID_ROLE`/`THUMB_ROLE`. The `QListView` is in list mode with a 120×68 icon size and uniform row
+  sizes, so each row shows its thumbnail and the selected/now-playing row is clearly highlighted.
+  Thumbnails are fetched async via `QNetworkAccessManager` and **cached by video ID** so
+  re-shuffle/search does not refetch; `dataChanged` is emitted for both `THUMB_ROLE` and
+  `Qt.DecorationRole` when a thumbnail arrives.
 - `PlayerView` (a `QWebEngineView` in `player.py`) loads the bundled `player.html` (package data,
   shipped inside the package for packaging robustness) which hosts the YouTube IFrame Player API.
   Python drives playback via `page.runJavaScript(...)` calling `window.playVideo` /

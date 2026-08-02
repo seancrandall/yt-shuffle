@@ -33,3 +33,13 @@ def test_invalid_index_returns_none():
     from PySide6.QtCore import QModelIndex
 
     assert model.data(QModelIndex()) is None
+
+
+def test_decoration_and_tooltip_roles():
+    from PySide6.QtCore import Qt
+
+    model = PlaylistModel()
+    model.set_videos([Video(id="1", title="Hello World")])  # no thumbnail_url -> no fetch
+    idx = model.index(0, 0)
+    assert model.data(idx, Qt.DecorationRole) is None  # nothing loaded yet
+    assert model.data(idx, Qt.ToolTipRole) == "Hello World"

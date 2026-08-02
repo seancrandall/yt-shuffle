@@ -6,7 +6,7 @@ responsive; the resulting videos are shuffled (full-coverage Fisher–Yates) bef
 
 from __future__ import annotations
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QSize, QThread, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -102,6 +102,9 @@ class MainWindow(QMainWindow):
 
         self.list_view = QListView()
         self.list_view.setModel(self._model)
+        self.list_view.setIconSize(QSize(120, 68))
+        self.list_view.setUniformItemSizes(True)
+        self.list_view.setSpacing(2)
         self.list_view.clicked.connect(self.on_row_clicked)
         root.addWidget(self.list_view, 2)
 
