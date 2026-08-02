@@ -7,7 +7,7 @@ responsive; the resulting videos are shuffled (full-coverage Fisher–Yates) bef
 from __future__ import annotations
 
 import httpx
-from PySide6.QtCore import QSize, QThread, Signal
+from PySide6.QtCore import QSize, Qt, QThread, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -163,10 +163,26 @@ class MainWindow(QMainWindow):
         # Highlight the now-playing row as the player advances (manual or auto-advance).
         self.player.currentChanged.connect(self.on_current_changed)
 
+        # Floating "Exit" button shown over the player when chrome is hidden
+        # (cinema mode / fullscreen) — a visible way out, since Esc isn't discoverable.
+        self._exit_btn = QPushButton("✕  Exit", self)
+        self._exit_btn.setCursor(Qt.PointingHandCursor)
+        self._exit_btn.setStyleSheet(
+            "QPushButton { background: rgba(0,0,0,170); color: #fff;"
+            " padding: 6px 14px; border: 1px solid rgba(255,255,255,40); border-radius: 6px; }"
+            "QPushButton:hover { background: rgba(40,40,40,210); }"
+        )
+        self._exit_btn.clicked.connect(self._exit_immersive)
+        self._exit_btn.hide()
+
         # F11 toggles fullscreen; Esc exits fullscreen or cinema mode.
         QShortcut(QKeySequence("F11"), self, activated=self.on_toggle_fullscreen)
         QShortcut(QKeySequence("Esc"), self, activated=self.on_escape)
         self._apply_layout()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_exit_button()
 
     def _set_chrome_visible(self, visible: bool) -> None:
         """Show/hide everything except the player (top bar, controls, playlist list)."""
@@ -176,7 +192,30 @@ class MainWindow(QMainWindow):
 
     def _apply_layout(self) -> None:
         """Hide chrome when fullscreen or in cinema mode; otherwise show it."""
-        self._set_chrome_visible(not (self.isFullScreen() or self._cinema))
+        hidden = self.isFullScreen() or self._cinema
+        self._set_chrome_visible(not hidden)
+        self._exit_btn.setVisible(hidden)
+        if hidden:
+            self._position_exit_button()
+
+    def _position_exit_button(self) -> None:
+        """Pin the floating Exit button to the top-right corner (over the player)."""
+        if not self._exit_btn.isVisible():
+            return
+        self._exit_btn.adjustSize()
+        x = max(0, self.width() - self._exit_btn.width() - 14)
+        self._exit_btn.move(x, 12)
+        self._exit_btn.raise_()
+
+    def _exit_immersive(self) -> None:
+        """Leave both fullscreen and cinema mode (the visible way out)."""
+        if self.isFullScreen():
+            self.showNormal()
+        if self._cinema:
+            idx = self.quality_combo.findData("hd720")
+            self.quality_combo.setCurrentIndex(max(0, idx))  # fires on_quality_changed
+        else:
+            self._apply_layout()
 
     def _api_key(self) -> str | None:
         key = get_api_key()
