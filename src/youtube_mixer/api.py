@@ -105,3 +105,42 @@ def fetch_playlist(
     finally:
         if own_client:
             client.close()
+
+
+def fetch_playlist_meta(
+    playlist_id: str,
+    api_key: str,
+    *,
+    client: httpx.Client | None = None,
+) -> str:
+    """Fetch a playlist's title via the ``playlists.list`` endpoint.
+
+    Returns the playlist's ``snippet.title``, or ``""`` if the playlist is not
+    found / has no items (so callers can fall back to the id as the display name).
+    Uses the same ``client`` injection seam as :func:`fetch_playlist`.
+    """
+    if not api_key:
+        raise YouTubeError("Missing YouTube Data API key.")
+
+    own_client = client is None
+    if client is None:
+        client = httpx.Client(timeout=30.0)
+    try:
+        resp = client.get(
+            f"{YOUTUBE_API_BASE}/playlists",
+            params={"part": "snippet", "id": playlist_id, "key": api_key},
+        )
+        if resp.status_code != 200:
+            try:
+                message = resp.json().get("error", {}).get("message", resp.text)
+            except ValueError:
+                message = resp.text
+            raise YouTubeError(f"YouTube API error {resp.status_code}: {message}")
+
+        items = resp.json().get("items", [])
+        if not items:
+            return ""
+        return items[0].get("snippet", {}).get("title", "") or ""
+    finally:
+        if own_client:
+            client.close()

@@ -1,7 +1,12 @@
 import httpx
 import pytest
 
-from youtube_mixer.api import YouTubeError, fetch_playlist, parse_playlist_id
+from youtube_mixer.api import (
+    YouTubeError,
+    fetch_playlist,
+    fetch_playlist_meta,
+    parse_playlist_id,
+)
 
 
 def _client(pages_by_token: dict):
@@ -80,3 +85,38 @@ def test_fetch_playlist_api_error_raises():
 def test_fetch_playlist_missing_key_raises():
     with pytest.raises(YouTubeError):
         fetch_playlist("PLabc", "")
+
+
+def _meta_client(title_by_id: dict, *, status: int = 200):
+    """MockTransport client for playlists.list, keyed by the id query param."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        pid = request.url.params.get("id")
+        if status != 200:
+            return httpx.Response(status, json={"error": {"message": "boom"}})
+        title = title_by_id.get(pid)
+        if title is None:
+            return httpx.Response(200, json={"items": []})
+        return httpx.Response(200, json={"items": [{"snippet": {"title": title}}]})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_fetch_playlist_meta_returns_title():
+    client = _meta_client({"PLabc": "My Mix"})
+    assert fetch_playlist_meta("PLabc", "KEY", client=client) == "My Mix"
+
+
+def test_fetch_playlist_meta_empty_when_not_found():
+    client = _meta_client({})
+    assert fetch_playlist_meta("PLmissing", "KEY", client=client) == ""
+
+
+def test_fetch_playlist_meta_api_error_raises():
+    client = _meta_client({}, status=403)
+    with pytest.raises(YouTubeError):
+        fetch_playlist_meta("PLabc", "KEY", client=client)
+
+
+def test_fetch_playlist_meta_missing_key_raises():
+    with pytest.raises(YouTubeError):
+        fetch_playlist_meta("PLabc", "")
