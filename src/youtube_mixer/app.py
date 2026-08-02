@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from .api import YouTubeError, fetch_playlist, fetch_playlist_meta, parse_playlist_id
+from .manager import PlaylistManagerDialog
 from .models import ID_ROLE, PlaylistModel
 from .player import PlayerView
 from .playlist import Video, search, shuffle
@@ -91,6 +92,8 @@ class MainWindow(QMainWindow):
         self._refresh_playlist_combo()
         self.load_btn = QPushButton("Load")
         self.load_btn.clicked.connect(self.on_load)
+        self.manage_btn = QPushButton("Manage…")
+        self.manage_btn.clicked.connect(self._open_manager)
         self.reshuffle_btn = QPushButton("Shuffle")
         self.reshuffle_btn.clicked.connect(self.on_reshuffle)
         self.search_input = QLineEdit()
@@ -102,6 +105,7 @@ class MainWindow(QMainWindow):
         top.addWidget(QLabel("Playlist:"))
         top.addWidget(self.playlist_input, 3)
         top.addWidget(self.load_btn)
+        top.addWidget(self.manage_btn)
         top.addWidget(self.reshuffle_btn)
         top.addWidget(self.search_input, 2)
         top.addWidget(self.auto_advance_cb)
@@ -177,6 +181,13 @@ class MainWindow(QMainWindow):
         else:
             self.playlist_input.setEditText(typed)
         self.playlist_input.blockSignals(False)
+
+    def _open_manager(self) -> None:
+        """Open the Playlist Manager; refresh the combo if anything changed."""
+        current_id = self.playlist_input.currentData()
+        dlg = PlaylistManagerDialog(self)
+        if dlg.exec():
+            self._refresh_playlist_combo(select_id=current_id)
 
     def _start_load(self, playlist_input: str) -> None:
         key = self._api_key()
