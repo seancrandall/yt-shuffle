@@ -71,6 +71,15 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   Python drives playback via `page.runJavaScript(...)` calling `window.playVideo` /
   `playList` / `next` / `prev`. Calls before page load are buffered in Python; the page itself
   queues calls until the IFrame API player is ready (two-stage buffering).
+- **Why the page is served over http://localhost, not file://** (`server.py` `PlayerServer`):
+  YouTube's embed auth check rejects `file://` (`embedder.identity.missing.referrer`) and also
+  rejects `http://127.0.0.1` (error 150 / `auth`, video won't play) — but it accepts
+  `http://localhost`. So `PlayerServer` serves `player.html` on an ephemeral `localhost` port and
+  the view loads that URL. `main.py` also sets `QTWEBENGINE_CHROMIUM_FLAGS=--autoplay-policy=no-user-gesture-required`
+  (before `QApplication`) so `loadVideoById` can autoplay with sound — Qt button clicks don't count
+  as webview user gestures, so without this flag Chromium blocks autoplay. Both are required for
+  videos to actually load and play. `scripts/diagnose_player.py` reproduces the player flow
+  headlessly-ish and prints the JS console + a player-state probe — use it if playback breaks.
 - **Auto-advance + current-track signaling:** the page auto-advances to the next shuffled video
   on the IFrame API's `onStateChange` ENDED event (JS-side, no Python round-trip), gated by a JS
   `autoAdvance` flag driven from native via `window.setAutoAdvance`. A top-bar "Auto-advance"

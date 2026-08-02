@@ -18,6 +18,8 @@ from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
+from .server import PlayerServer
+
 _PLAYER_HTML = Path(__file__).parent / "player.html"
 
 
@@ -43,8 +45,13 @@ class PlayerView(QWebEngineView):
         channel.registerObject("bridge", self._bridge)
         self.page().setWebChannel(channel)
 
+        # YouTube embeds require an http origin (file:// is rejected with
+        # "embedder.identity.missing.referrer"), so serve the page locally.
+        self._server = PlayerServer(_PLAYER_HTML)
+        self._server.start()
+
         self.loadFinished.connect(self._on_load_finished)
-        self.load(QUrl.fromLocalFile(str(_PLAYER_HTML)))
+        self.load(QUrl(self._server.url))
 
     def _on_load_finished(self, ok: bool) -> None:
         if not ok:
