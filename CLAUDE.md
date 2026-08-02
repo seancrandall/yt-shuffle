@@ -80,6 +80,16 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   as webview user gestures, so without this flag Chromium blocks autoplay. Both are required for
   videos to actually load and play. `scripts/diagnose_player.py` reproduces the player flow
   headlessly-ish and prints the JS console + a player-state probe — use it if playback breaks.
+- **Why video frames actually render (not black):** QtWebEngine 6.11 (Chromium 140) regressed
+  hardware video decode on Linux — the DMA-BUF → GL frame-import path produces a `Y_UV` mailbox
+  the Skia renderer can't sample, so the GPU context is lost and decoded frames never reach the
+  screen while audio keeps playing (`SharedImageBackingFactory` / `ProduceSkia … non-existent
+  mailbox` errors; tracked in KDE Falkon #520199 and qutebrowser #8909/#8841). `main.py` adds
+  `--disable-features=AcceleratedVideoDecodeLinuxGL` to `QTWEBENGINE_CHROMIUM_FLAGS`. This
+  disables only the broken *hardware video-decode* path — full GPU compositing of the page and
+  video stays on; the video stream is just software-decoded (cheap for H.264). Do NOT replace this
+  with `--disable-gpu`, which would force full software rendering. `scripts/diagnose_embed.py` is
+  the visual oracle for this (auto-plays a known muted video in a window).
 - **Auto-advance + current-track signaling:** the page auto-advances to the next shuffled video
   on the IFrame API's `onStateChange` ENDED event (JS-side, no Python round-trip), gated by a JS
   `autoAdvance` flag driven from native via `window.setAutoAdvance`. A top-bar "Auto-advance"

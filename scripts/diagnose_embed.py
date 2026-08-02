@@ -13,7 +13,9 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 os.environ.setdefault(
-    "QTWEBENGINE_CHROMIUM_FLAGS", "--autoplay-policy=no-user-gesture-required"
+    "QTWEBENGINE_CHROMIUM_FLAGS",
+    "--autoplay-policy=no-user-gesture-required "
+    "--disable-features=AcceleratedVideoDecodeLinuxGL",
 )
 
 from PySide6.QtCore import QTimer, QUrl  # noqa: E402
@@ -72,7 +74,7 @@ def main() -> None:
     page = DiagPage(view)
     view.setPage(page)
     view.load(QUrl(url))
-    view.resize(640, 360)
+    view.resize(853, 480)
     view.show()
 
     probe_js = (
@@ -93,7 +95,7 @@ def main() -> None:
         page.runJavaScript(probe_js, cb)
 
     QTimer.singleShot(8000, probe)
-    QTimer.singleShot(13000, app.quit)
+    QTimer.singleShot(22000, app.quit)
     sys.exit(app.exec())
 
 
