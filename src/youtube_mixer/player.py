@@ -83,3 +83,7 @@ class PlayerView(QWebEngineView):
     def set_auto_advance(self, enabled: bool) -> None:
         flag = "true" if enabled else "false"
         self._run(f"window.setAutoAdvance && window.setAutoAdvance({flag});")
+
+    def set_quality(self, key: str) -> None:
+        """Set playback quality: medium|hd720|hd1080|hd1440|cinema (best)."""
+        self._run(f"window.setQuality && window.setQuality({key!r});")

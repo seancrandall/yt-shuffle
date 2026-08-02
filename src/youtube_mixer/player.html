@@ -24,6 +24,12 @@
     let currentIndex = 0;
     let bridge = null;
     let autoAdvance = true;
+    // Requested playback quality: "medium" (360), "hd720", "hd1080", "hd1440",
+    // or "cinema" (best available). YouTube caps quality by the player's on-screen
+    // size, so higher tiers only actually arrive when the player is large enough
+    // (cinema mode / fullscreen). Re-asserted on every loadVideoById because the
+    // IFrame player resets quality per video.
+    let currentQuality = "auto";
 
     function whenReady(fn) {
       if (ready) { try { fn(); } catch (e) { console.error(e); } }
@@ -36,10 +42,20 @@
       }
     }
 
+    function applyQuality() {
+      if (!player || !player.setPlaybackQualityRange) return;
+      if (currentQuality === "cinema") {
+        player.setPlaybackQualityRange("small", "highres");
+      } else if (currentQuality !== "auto") {
+        player.setPlaybackQualityRange(currentQuality, currentQuality);
+      }
+    }
+
     function playIndex(i) {
       if (!currentIds.length) return;
       currentIndex = (i + currentIds.length) % currentIds.length;
       player.loadVideoById(currentIds[currentIndex]);
+      applyQuality();
       notifyCurrent();
     }
 
@@ -51,6 +67,7 @@
         events: {
           onReady: () => {
             ready = true;
+            applyQuality();
             const q = pending.splice(0, pending.length);
             q.forEach(fn => { try { fn(); } catch (e) { console.error(e); } });
           },
@@ -76,6 +93,7 @@
           currentIndex = 0;
         }
         player.loadVideoById(id);
+        applyQuality();
         notifyCurrent();
       });
     };
@@ -89,6 +107,10 @@
     window.next = function () { whenReady(() => playIndex(currentIndex + 1)); };
     window.prev = function () { whenReady(() => playIndex(currentIndex - 1)); };
     window.setAutoAdvance = function (v) { autoAdvance = !!v; };
+    window.setQuality = function (q) {
+      currentQuality = q || "auto";
+      whenReady(applyQuality);
+    };
 
     // Set up the QWebChannel bridge to the native side.
     if (typeof qt !== "undefined") {

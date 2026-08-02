@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import httpx
 from PySide6.QtCore import QSize, QThread, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -33,8 +34,10 @@ from .settings import (
     get_api_key,
     get_auto_advance,
     get_playlists,
+    get_resolution,
     set_api_key,
     set_auto_advance,
+    set_resolution,
 )
 
 CONSOLE_URL = "https://console.cloud.google.com/apis/library/youtube.googleapis.com"
@@ -81,7 +84,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
 
-        top = QHBoxLayout()
+        self._top_bar = QWidget()
+        top = QHBoxLayout(self._top_bar)
+        top.setContentsMargins(0, 0, 0, 0)
         self.playlist_input = QComboBox()
         self.playlist_input.setEditable(True)
         self.playlist_input.setInsertPolicy(QComboBox.NoInsert)
@@ -102,6 +107,16 @@ class MainWindow(QMainWindow):
         self.auto_advance_cb = QCheckBox("Auto-advance")
         self.auto_advance_cb.setChecked(get_auto_advance())
         self.auto_advance_cb.toggled.connect(self.on_auto_advance_toggled)
+        self.quality_combo = QComboBox()
+        for label, key in (
+            ("360p", "medium"),
+            ("720p", "hd720"),
+            ("1080p", "hd1080"),
+            ("1440p", "hd1440"),
+            ("Cinema mode", "cinema"),
+        ):
+            self.quality_combo.addItem(label, key)
+        self.quality_combo.currentIndexChanged.connect(self.on_quality_changed)
         top.addWidget(QLabel("Playlist:"))
         top.addWidget(self.playlist_input, 3)
         top.addWidget(self.load_btn)
@@ -109,13 +124,25 @@ class MainWindow(QMainWindow):
         top.addWidget(self.reshuffle_btn)
         top.addWidget(self.search_input, 2)
         top.addWidget(self.auto_advance_cb)
-        root.addLayout(top)
+        top.addWidget(QLabel("Quality:"))
+        top.addWidget(self.quality_combo)
+        root.addWidget(self._top_bar)
 
         self.player = PlayerView()
         self.player.set_auto_advance(self.auto_advance_cb.isChecked())
         root.addWidget(self.player, 3)
+        # Restore last resolution without firing the handler during init.
+        init_res = get_resolution()
+        idx = self.quality_combo.findData(init_res)
+        self.quality_combo.blockSignals(True)
+        self.quality_combo.setCurrentIndex(max(0, idx))
+        self.quality_combo.blockSignals(False)
+        self._cinema = init_res == "cinema"
+        self.player.set_quality(init_res)
 
-        controls = QHBoxLayout()
+        self._controls_bar = QWidget()
+        controls = QHBoxLayout(self._controls_bar)
+        controls.setContentsMargins(0, 0, 0, 0)
         self.prev_btn = QPushButton("◀ Prev")
         self.prev_btn.clicked.connect(self.player.prev)
         self.next_btn = QPushButton("Next ▶")
@@ -123,7 +150,7 @@ class MainWindow(QMainWindow):
         controls.addWidget(self.prev_btn)
         controls.addWidget(self.next_btn)
         controls.addStretch()
-        root.addLayout(controls)
+        root.addWidget(self._controls_bar)
 
         self.list_view = QListView()
         self.list_view.setModel(self._model)
@@ -135,6 +162,21 @@ class MainWindow(QMainWindow):
 
         # Highlight the now-playing row as the player advances (manual or auto-advance).
         self.player.currentChanged.connect(self.on_current_changed)
+
+        # F11 toggles fullscreen; Esc exits fullscreen or cinema mode.
+        QShortcut(QKeySequence("F11"), self, activated=self.on_toggle_fullscreen)
+        QShortcut(QKeySequence("Esc"), self, activated=self.on_escape)
+        self._apply_layout()
+
+    def _set_chrome_visible(self, visible: bool) -> None:
+        """Show/hide everything except the player (top bar, controls, playlist list)."""
+        self._top_bar.setVisible(visible)
+        self._controls_bar.setVisible(visible)
+        self.list_view.setVisible(visible)
+
+    def _apply_layout(self) -> None:
+        """Hide chrome when fullscreen or in cinema mode; otherwise show it."""
+        self._set_chrome_visible(not (self.isFullScreen() or self._cinema))
 
     def _api_key(self) -> str | None:
         key = get_api_key()
@@ -248,3 +290,31 @@ class MainWindow(QMainWindow):
             if self._model.data(self._model.index(i, 0), ID_ROLE) == video_id:
                 self.list_view.setCurrentIndex(self._model.index(i, 0))
                 return
+
+    def on_quality_changed(self, _index: int) -> None:
+        """Apply the chosen resolution; cinema mode also hides chrome for a big player."""
+        key = self.quality_combo.currentData()
+        if not key:
+            return
+        self._cinema = key == "cinema"
+        set_resolution(key)
+        self.player.set_quality(key)
+        self._apply_layout()
+
+    def on_toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+        self._apply_layout()
+
+    def on_escape(self) -> None:
+        """Esc exits fullscreen, then cinema mode (the selector is hidden in cinema)."""
+        if self.isFullScreen():
+            self.showNormal()
+            self._apply_layout()
+            return
+        if self._cinema:
+            # Drop back to 720p (a safe default for a normal-sized player).
+            idx = self.quality_combo.findData("hd720")
+            self.quality_combo.setCurrentIndex(max(0, idx))  # fires on_quality_changed
