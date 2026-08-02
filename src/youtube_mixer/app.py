@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -24,7 +25,7 @@ from .api import YouTubeError, fetch_playlist
 from .models import ID_ROLE, PlaylistModel
 from .player import PlayerView
 from .playlist import Video, search, shuffle
-from .settings import get_api_key, set_api_key
+from .settings import get_api_key, get_auto_advance, set_api_key, set_auto_advance
 
 CONSOLE_URL = "https://console.cloud.google.com/apis/library/youtube.googleapis.com"
 
@@ -74,14 +75,19 @@ class MainWindow(QMainWindow):
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search…")
         self.search_input.textChanged.connect(self.on_search)
+        self.auto_advance_cb = QCheckBox("Auto-advance")
+        self.auto_advance_cb.setChecked(get_auto_advance())
+        self.auto_advance_cb.toggled.connect(self.on_auto_advance_toggled)
         top.addWidget(QLabel("Playlist:"))
         top.addWidget(self.playlist_input, 3)
         top.addWidget(self.load_btn)
         top.addWidget(self.reshuffle_btn)
         top.addWidget(self.search_input, 2)
+        top.addWidget(self.auto_advance_cb)
         root.addLayout(top)
 
         self.player = PlayerView()
+        self.player.set_auto_advance(self.auto_advance_cb.isChecked())
         root.addWidget(self.player, 3)
 
         controls = QHBoxLayout()
@@ -165,6 +171,10 @@ class MainWindow(QMainWindow):
         v = self._model.video_at(index.row())
         if v:
             self.player.play_video(v.id)
+
+    def on_auto_advance_toggled(self, enabled: bool) -> None:
+        set_auto_advance(enabled)
+        self.player.set_auto_advance(enabled)
 
     def on_current_changed(self, video_id: str) -> None:
         """Select the now-playing row in the list (if currently visible)."""

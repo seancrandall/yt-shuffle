@@ -39,3 +39,14 @@ def set_api_key(key: str) -> None:
     data = load_settings()
     data["api_key"] = key.strip()
     save_settings(data)
+
+
+def get_auto_advance() -> bool:
+    """Auto-advance defaults to on when unset."""
+    return bool(load_settings().get("auto_advance", True))
+
+
+def set_auto_advance(enabled: bool) -> None:
+    data = load_settings()
+    data["auto_advance"] = bool(enabled)
+    save_settings(data)

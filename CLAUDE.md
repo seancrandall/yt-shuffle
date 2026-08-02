@@ -55,7 +55,9 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   `playList` / `next` / `prev`. Calls before page load are buffered in Python; the page itself
   queues calls until the IFrame API player is ready (two-stage buffering).
 - **Auto-advance + current-track signaling:** the page auto-advances to the next shuffled video
-  on the IFrame API's `onStateChange` ENDED event (JS-side, no Python round-trip). A `QtWebChannel`
+  on the IFrame API's `onStateChange` ENDED event (JS-side, no Python round-trip), gated by a JS
+  `autoAdvance` flag driven from native via `window.setAutoAdvance`. A top-bar "Auto-advance"
+  checkbox toggles it (default on, persisted in `settings.get_auto_advance`). A `QtWebChannel`
   bridge (`_PlayerBridge` registered as `"bridge"`) lets the page call back
   `bridge.currentChanged(videoId)` whenever the now-playing video changes; `PlayerView.currentChanged`
   forwards it to `MainWindow.on_current_changed`, which selects the matching row in the list.

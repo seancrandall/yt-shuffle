@@ -23,6 +23,7 @@
     let currentIds = [];
     let currentIndex = 0;
     let bridge = null;
+    let autoAdvance = true;
 
     function whenReady(fn) {
       if (ready) { try { fn(); } catch (e) { console.error(e); } }
@@ -55,7 +56,7 @@
           },
           // Auto-advance: when a video finishes, move to the next in the shuffled order.
           onStateChange: (e) => {
-            if (e.data === YT.PlayerState.ENDED) {
+            if (e.data === YT.PlayerState.ENDED && autoAdvance) {
               playIndex(currentIndex + 1);
             }
           },
@@ -87,6 +88,7 @@
 
     window.next = function () { whenReady(() => playIndex(currentIndex + 1)); };
     window.prev = function () { whenReady(() => playIndex(currentIndex - 1)); };
+    window.setAutoAdvance = function (v) { autoAdvance = !!v; };
 
     // Set up the QWebChannel bridge to the native side.
     if (typeof qt !== "undefined") {
