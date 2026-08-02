@@ -37,8 +37,10 @@
     }
 
     function notifyCurrent() {
+      // QWebChannel exposes Qt *slots* (not signals) as callable, so call the
+      // report_current slot, which re-emits currentChanged on the native side.
       if (bridge && currentIds.length) {
-        try { bridge.currentChanged(currentIds[currentIndex]); } catch (e) { console.error(e); }
+        try { bridge.report_current(currentIds[currentIndex]); } catch (e) { console.error(e); }
       }
     }
 

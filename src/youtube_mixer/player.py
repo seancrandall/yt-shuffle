@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtCore import QObject, QUrl, Signal, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
@@ -27,6 +27,12 @@ class _PlayerBridge(QObject):
     """Object exposed to the page's JS via QWebChannel (registered as 'bridge')."""
 
     currentChanged = Signal(str)
+
+    @Slot(str)
+    def report_current(self, video_id: str) -> None:
+        """Invokable from JS (QWebChannel exposes slots, not signals) to report the
+        now-playing video; re-emitted as ``currentChanged`` for the native UI."""
+        self.currentChanged.emit(video_id)
 
 
 class PlayerView(QWebEngineView):
