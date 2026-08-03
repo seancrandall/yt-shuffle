@@ -329,6 +329,9 @@ class MainWindow(QMainWindow):
 
     def _start_load(self, playlist_input: str, *, autoplay: bool = True,
                      silent: bool = False) -> None:
+        # Don't orphan a running load thread; let it finish (its results will still apply).
+        if self._thread is not None and self._thread.isRunning():
+            return
         key = self._api_key() if not silent else get_api_key()
         if not key:
             if not silent:
@@ -340,10 +343,21 @@ class MainWindow(QMainWindow):
         self._pending_autoplay = autoplay
         self._pending_silent = silent
         self.load_btn.setEnabled(False)
-        self._thread = LoadThread(playlist_input, key, self)
-        self._thread.videos_ready.connect(self._on_loaded)
-        self._thread.failed.connect(self._on_failed)
-        self._thread.start()
+        thread = LoadThread(playlist_input, key, self)
+        self._thread = thread
+        thread.videos_ready.connect(self._on_loaded)
+        thread.failed.connect(self._on_failed)
+        # Clean teardown: on finish, deleteLater the thread (it's parented to the window, so
+        # without this each load leaves a finished QThread around for the window's lifetime).
+        thread.finished.connect(self._on_load_thread_finished)
+        thread.start()
+
+    def _on_load_thread_finished(self) -> None:
+        thread = self.sender()
+        if thread is self._thread:
+            self._thread = None
+        if thread is not None:
+            thread.deleteLater()
 
     def _on_loaded(self, videos: list, playlist_id: str, name: str) -> None:
         self.load_btn.setEnabled(True)

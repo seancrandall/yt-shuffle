@@ -85,7 +85,9 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
 
 `app.py` (MainWindow) orchestrates everything:
 - User pastes a playlist URL/ID → `LoadThread` (a QThread) calls `api.fetch_playlist` off the UI
-  thread → emits the `list[Video]` back via a signal.
+  thread → emits the `list[Video]` back via a signal. Each `LoadThread` is cleaned up on
+  `finished` (`_on_load_thread_finished` → `deleteLater` + clears `self._thread`); `_start_load`
+  refuses to start a second while one is still running.
 - `playlist.shuffle` does a full-coverage Fisher–Yates shuffle of the entire list (the core fix;
   optional `seed` for reproducibility). The shuffled order is the default playback order, but the
   "Shuffle" button is a **toggle**: clicking it again restores canonical (original-fetched) order.
@@ -101,7 +103,10 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   sizes, so each row shows its thumbnail and the selected/now-playing row is clearly highlighted.
   Thumbnails are fetched async via `QNetworkAccessManager` and **cached by video ID** so
   re-shuffle/search does not refetch; `dataChanged` is emitted for both `THUMB_ROLE` and
-  `Qt.DecorationRole` when a thumbnail arrives.
+  `Qt.DecorationRole` when a thumbnail arrives. Pixmaps are **scaled to ~2x the list icon size
+  before caching** (`THUMB_PIXEL_SIZE`, not the full YouTube "medium" 320×180) and the cache is
+  **capped** (`MAX_THUMBS`, FIFO) so a long playlist and many different loaded playlists can't
+  grow it without bound; evicted entries refetch on the next shuffle/search.
 - `PlayerView` (a `QWebEngineView` in `player.py`) loads the bundled `player.html` (package data,
   shipped inside the package for packaging robustness) which hosts the YouTube IFrame Player API.
   Python drives playback via `page.runJavaScript(...)` calling `window.playVideo` /
@@ -114,8 +119,10 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   the view loads that URL. `main.py` also sets `QTWEBENGINE_CHROMIUM_FLAGS=--autoplay-policy=no-user-gesture-required`
   (before `QApplication`) so `loadVideoById` can autoplay with sound — Qt button clicks don't count
   as webview user gestures, so without this flag Chromium blocks autoplay. Both are required for
-  videos to actually load and play. `scripts/diagnose_player.py` reproduces the player flow
-  headlessly-ish and prints the JS console + a player-state probe — use it if playback breaks.
+  videos to actually load and play. For long unattended runs the flags also bound Chromium's
+  footprint: `--renderer-process-limit=1` (single-page embed needs one renderer) and small
+  `--disk-cache-size` / `--media-cache-size` caps. `scripts/diagnose_player.py` reproduces the player
+  flow headlessly-ish and prints the JS console + a player-state probe — use it if playback breaks.
 - **Why video frames actually render (not black):** QtWebEngine 6.11 (Chromium 140) regressed
   hardware video decode on Linux — the DMA-BUF → GL frame-import path produces a `Y_UV` mailbox
   the Skia renderer can't sample, so the GPU context is lost and decoded frames never reach the

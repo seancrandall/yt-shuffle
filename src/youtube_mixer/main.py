@@ -30,6 +30,13 @@ def main() -> None:
     #   (Qt button clicks aren't webview user gestures, so without this Chromium
     #   blocks autoplay).
     #
+    # --renderer-process-limit=1: this is a single-page embed, so cap Chromium to one
+    #   renderer process instead of spawning several (the localhost page and the
+    #   youtube.com IFrame share it). Bounds the process count for long unattended runs.
+    #
+    # --disk-cache-size / --media-cache-size: small caps so the on-disk caches (which
+    #   Chromium also memory-maps) can't balloon over hours of auto-advancing videos.
+    #
     # --disable-features=AcceleratedVideoDecodeLinuxGL: QtWebEngine 6.11 (Chromium
     #   140) regressed hardware video decode on Linux — the DMA-BUF -> GL frame
     #   import path produces a Y_UV mailbox the Skia renderer can't sample, so the
@@ -42,7 +49,10 @@ def main() -> None:
     os.environ.setdefault(
         "QTWEBENGINE_CHROMIUM_FLAGS",
         "--autoplay-policy=no-user-gesture-required "
-        "--disable-features=AcceleratedVideoDecodeLinuxGL",
+        "--disable-features=AcceleratedVideoDecodeLinuxGL "
+        "--renderer-process-limit=1 "
+        "--disk-cache-size=8388608 "
+        "--media-cache-size=8388608",
     )
     app = QApplication(sys.argv)
     app.setApplicationName("YouTube Randomizer")

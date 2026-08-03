@@ -43,3 +43,19 @@ def test_decoration_and_tooltip_roles():
     idx = model.index(0, 0)
     assert model.data(idx, Qt.DecorationRole) is None  # nothing loaded yet
     assert model.data(idx, Qt.ToolTipRole) == "Hello World"
+
+
+def test_thumb_cache_is_capped():
+    from PySide6.QtGui import QPixmap
+
+    from youtube_mixer.models import MAX_THUMBS
+
+    model = PlaylistModel()
+    # Overfill the cache directly; _prune_thumbs should keep it at the cap.
+    for i in range(MAX_THUMBS + 500):
+        model._thumbs[f"id{i}"] = QPixmap(1, 1)
+    model._prune_thumbs()
+    assert len(model._thumbs) == MAX_THUMBS
+    # FIFO: the oldest entries (id0..) were evicted, the newest (id499..) kept.
+    assert "id0" not in model._thumbs
+    assert f"id{MAX_THUMBS + 499}" in model._thumbs

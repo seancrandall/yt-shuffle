@@ -16,6 +16,14 @@ from .playlist import Video
 THUMB_ROLE = Qt.UserRole + 1
 ID_ROLE = Qt.UserRole + 2
 
+# Thumbnails are cached scaled to ~2x the list icon size (240x136 — crisp on HiDPI) rather
+# than the source resolution (YouTube "medium" is 320x180, ~230 KB per pixmap), so a long
+# playlist costs tens of MB of pixmaps instead of hundreds. The cache is also capped so
+# loading many different playlists can't grow it without bound; evicted entries refetch
+# on the next shuffle/search (set_videos only fetches ids not already cached).
+THUMB_PIXEL_SIZE = QSize(240, 136)
+MAX_THUMBS = 3000
+
 
 class PlaylistModel(QAbstractListModel):
     def __init__(self, parent=None):
@@ -72,9 +80,19 @@ class PlaylistModel(QAbstractListModel):
         pix = QPixmap()
         if not pix.loadFromData(data):
             return
+        if not pix.isNull():
+            # Store scaled-to-display-size so the cache holds small pixmaps, not the full
+            # source image; the original large pixmap is dropped (no remaining reference).
+            pix = pix.scaled(THUMB_PIXEL_SIZE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self._thumbs[vid] = pix
+        self._prune_thumbs()
         for i, v in enumerate(self._videos):
             if v.id == vid:
                 idx = self.index(i, 0)
                 self.dataChanged.emit(idx, idx, [THUMB_ROLE, Qt.DecorationRole])
                 break
+
+    def _prune_thumbs(self) -> None:
+        """Bound the thumbnail cache (FIFO by fetch order — most recent playlist last)."""
+        while len(self._thumbs) > MAX_THUMBS:
+            self._thumbs.pop(next(iter(self._thumbs)))
