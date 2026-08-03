@@ -141,3 +141,28 @@ def set_resolution(value: str) -> None:
     data = load_settings()
     data["resolution"] = value
     save_settings(data)
+
+
+# --- Last-used playlist (auto-loaded, but not auto-played, on launch) ---------
+
+def get_last_playlist_id() -> str | None:
+    return load_settings().get("last_playlist_id")
+
+
+def set_last_playlist_id(playlist_id: str) -> None:
+    data = load_settings()
+    data["last_playlist_id"] = playlist_id
+    save_settings(data)
+
+
+# --- Window geometry (saved on close, restored on launch) ---------------------
+# Stored as the hex encoding of Qt's saveGeometry() bytes.
+
+def get_geometry() -> str | None:
+    return load_settings().get("geometry")
+
+
+def set_geometry(value: str) -> None:
+    data = load_settings()
+    data["geometry"] = value
+    save_settings(data)

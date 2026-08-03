@@ -80,6 +80,12 @@ class PlayerView(QWebEngineView):
         ids_js = "[" + ",".join(repr(i) for i in video_ids) + "]"
         self._run(f"window.playList && window.playList({ids_js}, {int(index)});")
 
+    def cue_list(self, video_ids: list[str], index: int = 0) -> None:
+        """Load the order and cue (not play) the first video — for auto-loading the last
+        playlist on launch without auto-playing."""
+        ids_js = "[" + ",".join(repr(i) for i in video_ids) + "]"
+        self._run(f"window.cueList && window.cueList({ids_js}, {int(index)});")
+
     def set_list(self, video_ids: list[str], index: int = 0) -> None:
         """Reorder the player's list *without* reloading the current video: sets the new
         play order and the current index, leaving what's playing untouched (used by the

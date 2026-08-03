@@ -93,3 +93,17 @@ def test_resolution_rejects_unknown(tmp_config):
 def test_resolution_falls_back_when_garbage(tmp_config):
     tmp_config.write_text('{"resolution": "not-a-quality"}')
     assert settings.get_resolution() == "hd720"
+
+
+def test_last_playlist_id_round_trip(tmp_config):
+    assert settings.get_last_playlist_id() is None
+    settings.set_last_playlist_id("PLxyz")
+    assert settings.get_last_playlist_id() == "PLxyz"
+    settings.set_last_playlist_id("PLother")
+    assert settings.get_last_playlist_id() == "PLother"
+
+
+def test_geometry_round_trip(tmp_config):
+    assert settings.get_geometry() is None
+    settings.set_geometry("deadbeef")
+    assert settings.get_geometry() == "deadbeef"

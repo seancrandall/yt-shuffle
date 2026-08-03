@@ -59,6 +59,16 @@ not the top-level `icons/` dir, so the window icon must live inside the package.
 it via `importlib.resources` and sets it with `app.setWindowIcon`. `tests/test_icon.py` fails if
 the two copies drift — after editing `icons/youtube-mixer.png`, re-copy it into the package.
 
+`settings.py` also persists the **last-used playlist id** (`get/set_last_playlist_id`) and the
+**window geometry** (`get/set_geometry`, the hex of Qt's `saveGeometry` bytes). On launch
+`MainWindow.__init__` restores the geometry and, if a last playlist id *and* a stored API key
+both exist, kicks off a **silent, non-autoplaying** load of it (`_start_load(last, autoplay=False,
+silent=True)`): it populates the list and **cues** (not plays) the first video via
+`PlayerView.cue_list` → `window.cueList` → `player.cueVideoById`. Silent means a launch-time
+failure (e.g. offline) doesn't pop a modal. `closeEvent` saves geometry (skipped while fullscreen,
+so the restored geometry is the normal window's, not the fullscreen one). Quality is likewise
+persisted (`get/set_resolution`), restored into the combo on startup.
+
 ## Versioning
 
 Semantic Versioning, pre-1.0 convention (while major is `0`, minors may break). The version has

@@ -61,6 +61,16 @@
       notifyCurrent();
     }
 
+    // Cue (load poster + ready state) without starting playback — used when the app
+    // loads the last playlist on launch but shouldn't auto-play.
+    function cueIndex(i) {
+      if (!currentIds.length) return;
+      currentIndex = (i + currentIds.length) % currentIds.length;
+      player.cueVideoById(currentIds[currentIndex]);
+      applyQuality();
+      notifyCurrent();
+    }
+
     window.onYouTubeIframeAPIReady = function () {
       player = new YT.Player("player", {
         width: "100%",
@@ -104,6 +114,14 @@
       currentIds = ids || [];
       const start = index || 0;
       whenReady(() => playIndex(start));
+    };
+
+    // Load the order and cue (not play) the first video — for auto-loading the last
+    // playlist on launch without auto-playing.
+    window.cueList = function (ids, index) {
+      currentIds = ids || [];
+      const start = index || 0;
+      whenReady(() => cueIndex(start));
     };
 
     // Replace the play order without reloading the current video (shuffle toggle): just

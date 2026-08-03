@@ -7,7 +7,7 @@ responsive; the resulting videos are shuffled (full-coverage Fisher–Yates) bef
 from __future__ import annotations
 
 import httpx
-from PySide6.QtCore import QEvent, QSize, Qt, QThread, Signal
+from PySide6.QtCore import QByteArray, QEvent, QSize, Qt, QThread, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -34,10 +34,14 @@ from .settings import (
     add_playlist,
     get_api_key,
     get_auto_advance,
+    get_geometry,
+    get_last_playlist_id,
     get_playlists,
     get_resolution,
     set_api_key,
     set_auto_advance,
+    set_geometry,
+    set_last_playlist_id,
     set_resolution,
 )
 
@@ -93,10 +97,24 @@ class MainWindow(QMainWindow):
         self._model = PlaylistModel(self)
         self._thread: LoadThread | None = None
         self._pending_input: str = ""
+        self._pending_autoplay = True
+        self._pending_silent = False
         self._build_ui()
+        # Restore last window position/size before the first show.
+        geo = get_geometry()
+        if geo:
+            try:
+                self.restoreGeometry(QByteArray(bytes.fromhex(geo)))
+            except (ValueError, TypeError):
+                pass
         # Application-wide key filter for media hotkeys (Space/Ctrl+arrows/Ctrl+S) so they
         # work regardless of focus, while leaving typing in the search/combo box alone.
         QApplication.instance().installEventFilter(self)
+        # Auto-load the last-used playlist on launch (but don't auto-play it). Skipped when
+        # there's no stored API key (we don't want to prompt on launch) or no last playlist.
+        last = get_last_playlist_id()
+        if last and get_api_key():
+            self._start_load(last, autoplay=False, silent=True)
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -213,6 +231,16 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._position_exit_button()
 
+    def closeEvent(self, event):
+        # Persist window position/size for next launch (skip while fullscreen — the
+        # normal geometry is what we want to restore, not the fullscreen one).
+        if not self.isFullScreen():
+            try:
+                set_geometry(bytes(self.saveGeometry()).hex())
+            except (OSError, ValueError):
+                pass
+        super().closeEvent(event)
+
     def _set_chrome_visible(self, visible: bool) -> None:
         """Show/hide everything except the player (top bar, controls, playlist list)."""
         self._top_bar.setVisible(visible)
@@ -299,14 +327,18 @@ class MainWindow(QMainWindow):
         if dlg.exec():
             self._refresh_playlist_combo(select_id=current_id)
 
-    def _start_load(self, playlist_input: str) -> None:
-        key = self._api_key()
+    def _start_load(self, playlist_input: str, *, autoplay: bool = True,
+                     silent: bool = False) -> None:
+        key = self._api_key() if not silent else get_api_key()
         if not key:
-            QMessageBox.warning(
-                self, "No API key", "A YouTube Data API key is required to load playlists."
-            )
+            if not silent:
+                QMessageBox.warning(
+                    self, "No API key", "A YouTube Data API key is required to load playlists."
+                )
             return
         self._pending_input = playlist_input
+        self._pending_autoplay = autoplay
+        self._pending_silent = silent
         self.load_btn.setEnabled(False)
         self._thread = LoadThread(playlist_input, key, self)
         self._thread.videos_ready.connect(self._on_loaded)
@@ -316,22 +348,26 @@ class MainWindow(QMainWindow):
     def _on_loaded(self, videos: list, playlist_id: str, name: str) -> None:
         self.load_btn.setEnabled(True)
         if not videos:
-            QMessageBox.information(self, "Empty", "No videos found in that playlist.")
+            if not self._pending_silent:
+                QMessageBox.information(self, "Empty", "No videos found in that playlist.")
             return
         # Save to history (deduped by id) and reflect it in the combo by name.
         url = self._pending_input if "://" in self._pending_input else None
         add_playlist(playlist_id, name or playlist_id, url=url)
+        set_last_playlist_id(playlist_id)
         self._refresh_playlist_combo(select_id=playlist_id)
         self._canonical = list(videos)  # preserve original order for unshuffle
         self._order = shuffle(videos)
         self._shuffled = True
         self._current_id = ""
         self._update_shuffle_button()
-        self._apply_order()
+        self._apply_order(autoplay=self._pending_autoplay)
 
     def _on_failed(self, message: str) -> None:
         self.load_btn.setEnabled(True)
-        QMessageBox.critical(self, "Load failed", message)
+        # Silent loads (the launch auto-load) don't pop a modal — e.g. no network on start.
+        if not self._pending_silent:
+            QMessageBox.critical(self, "Load failed", message)
 
     def on_toggle_shuffle(self) -> None:
         """Toggle the Shuffle button: shuffle the canonical order, or restore it.
@@ -370,10 +406,13 @@ class MainWindow(QMainWindow):
         text = self.search_input.text().strip()
         self._model.set_videos(search(self._order, text) if text else self._order)
 
-    def _apply_order(self) -> None:
-        """Initial apply: refresh the list and start the player at the top of the order."""
+    def _apply_order(self, *, autoplay: bool = True) -> None:
+        """Initial apply: refresh the list and start (or cue) the player at the top of the order."""
         self._refresh_model()
-        self.player.play_list(self._order_ids(), 0)
+        if autoplay:
+            self.player.play_list(self._order_ids(), 0)
+        else:
+            self.player.cue_list(self._order_ids(), 0)
 
     def _apply_order_preserve(self) -> None:
         """Reorder without restarting playback: keep the current video playing and point

@@ -34,6 +34,8 @@ the web tool at https://youtube-playlist-randomizer.bitbucket.io/, but as a nati
   order — switching keeps the current video playing and continues next/prev from it.
 - **Hotkeys:** **Space** play/pause, **Ctrl+→** next, **Ctrl+←** previous, **Ctrl+S**
   shuffle/unshuffle (suppressed while you're typing in the search/playlist box).
+- Remembers your last playlist, quality, and window size/position — on launch it reloads the
+  last playlist (cued, not auto-playing) and restores the window.
 - Auto-advance to the next video when one ends (toggleable, remembered between runs).
 - The playlist is displayed in the shuffled playback order, with thumbnails; the now-playing
   row is highlighted as playback advances.
