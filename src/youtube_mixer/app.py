@@ -87,6 +87,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("YouTube Randomizer")
         self.resize(900, 720)
         self._order: list[Video] = []
+        self._canonical: list[Video] = []  # original fetched order (never mutated)
+        self._shuffled = False  # whether _order is currently shuffled vs canonical
+        self._current_id = ""  # id of the now-playing video (for reorder-without-restart)
         self._model = PlaylistModel(self)
         self._thread: LoadThread | None = None
         self._pending_input: str = ""
@@ -124,8 +127,9 @@ class MainWindow(QMainWindow):
 
         # Row 2 — secondary controls, on their own line so the bar fits portrait widths.
         row2 = QHBoxLayout()
-        self.reshuffle_btn = QPushButton("Shuffle")
-        self.reshuffle_btn.clicked.connect(self.on_reshuffle)
+        self.shuffle_btn = QPushButton("Shuffle")
+        self.shuffle_btn.setToolTip("Toggle between shuffled and canonical (original) order")
+        self.shuffle_btn.clicked.connect(self.on_toggle_shuffle)
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search…")
         self.search_input.textChanged.connect(self.on_search)
@@ -142,7 +146,7 @@ class MainWindow(QMainWindow):
         ):
             self.quality_combo.addItem(label, key)
         self.quality_combo.currentIndexChanged.connect(self.on_quality_changed)
-        row2.addWidget(self.reshuffle_btn)
+        row2.addWidget(self.shuffle_btn)
         row2.addWidget(self.search_input, 1)
         row2.addWidget(self.auto_advance_cb)
         row2.addWidget(QLabel("Quality:"))
@@ -315,26 +319,69 @@ class MainWindow(QMainWindow):
         url = self._pending_input if "://" in self._pending_input else None
         add_playlist(playlist_id, name or playlist_id, url=url)
         self._refresh_playlist_combo(select_id=playlist_id)
+        self._canonical = list(videos)  # preserve original order for unshuffle
         self._order = shuffle(videos)
+        self._shuffled = True
+        self._current_id = ""
+        self._update_shuffle_button()
         self._apply_order()
 
     def _on_failed(self, message: str) -> None:
         self.load_btn.setEnabled(True)
         QMessageBox.critical(self, "Load failed", message)
 
-    def on_reshuffle(self) -> None:
-        if self._order:
-            self._order = shuffle(self._order)
-            self._apply_order()
+    def on_toggle_shuffle(self) -> None:
+        """Toggle the Shuffle button: shuffle the canonical order, or restore it.
+
+        Switching either way keeps the currently-playing video going (no restart) and
+        re-points next/prev into the new order at the current video's position — so you
+        can flip between random and original order mid-playback."""
+        if not self._order:
+            return
+        if self._shuffled:
+            self._order = list(self._canonical)
+            self._shuffled = False
+        else:
+            self._order = shuffle(self._canonical)
+            self._shuffled = True
+        self._update_shuffle_button()
+        self._apply_order_preserve()
+
+    def _update_shuffle_button(self) -> None:
+        # Label = the action clicking will take: unshuffle while shuffled, shuffle while ordered.
+        self.shuffle_btn.setText("Unshuffle" if self._shuffled else "Shuffle")
+
+    def _order_ids(self) -> list[str]:
+        return [v.id for v in self._order]
+
+    def _current_index(self) -> int:
+        """Index of the now-playing video in the current order (0 if none/unknown)."""
+        if self._current_id:
+            for i, v in enumerate(self._order):
+                if v.id == self._current_id:
+                    return i
+        return 0
+
+    def _refresh_model(self) -> None:
+        """Show the current order in the list, filtered by any active search text."""
+        text = self.search_input.text().strip()
+        self._model.set_videos(search(self._order, text) if text else self._order)
 
     def _apply_order(self) -> None:
-        self._model.set_videos(self._order)
-        self.player.play_list(self._model.ids(), 0)
+        """Initial apply: refresh the list and start the player at the top of the order."""
+        self._refresh_model()
+        self.player.play_list(self._order_ids(), 0)
+
+    def _apply_order_preserve(self) -> None:
+        """Reorder without restarting playback: keep the current video playing and point
+        next/prev into the new order at its position (used by the shuffle toggle)."""
+        self._refresh_model()
+        self.player.set_list(self._order_ids(), self._current_index())
 
     def on_search(self, text: str) -> None:
         if not self._order:
             return
-        self._model.set_videos(search(self._order, text))
+        self._refresh_model()
 
     def on_row_clicked(self, index) -> None:
         v = self._model.video_at(index.row())
@@ -346,7 +393,8 @@ class MainWindow(QMainWindow):
         self.player.set_auto_advance(enabled)
 
     def on_current_changed(self, video_id: str) -> None:
-        """Select the now-playing row in the list (if currently visible)."""
+        """Track the now-playing video and select its row in the list (if visible)."""
+        self._current_id = video_id
         for i in range(self._model.rowCount()):
             if self._model.data(self._model.index(i, 0), ID_ROLE) == video_id:
                 self.list_view.setCurrentIndex(self._model.index(i, 0))

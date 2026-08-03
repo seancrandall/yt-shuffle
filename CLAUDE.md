@@ -77,7 +77,14 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
 - User pastes a playlist URL/ID → `LoadThread` (a QThread) calls `api.fetch_playlist` off the UI
   thread → emits the `list[Video]` back via a signal.
 - `playlist.shuffle` does a full-coverage Fisher–Yates shuffle of the entire list (the core fix;
-  optional `seed` for reproducibility). The shuffled order is the canonical playback order.
+  optional `seed` for reproducibility). The shuffled order is the default playback order, but the
+  "Shuffle" button is a **toggle**: clicking it again restores canonical (original-fetched) order.
+  `MainWindow` keeps both `self._canonical` (original, never mutated) and `self._order` (current
+  display/playback order); toggling swaps `_order` between `shuffle(_canonical)` and `_canonical`.
+  The toggle **does not restart playback** — it calls `PlayerView.set_list` → `window.setList`
+  (player.html), which re-points the play order and current index without `loadVideoById`, so the
+  now-playing video keeps going and next/prev continue from it in the new order. (`_apply_order`,
+  used only on initial load, still calls `play_list` which loads index 0.)
 - `PlaylistModel` (a `QAbstractListModel` in `models.py`) backs the bottom `QListView`; it exposes
   display title, `Qt.DecorationRole` (thumbnail as `QIcon`), `Qt.ToolTipRole` (full title), plus
   `ID_ROLE`/`THUMB_ROLE`. The `QListView` is in list mode with a 120×68 icon size and uniform row
@@ -142,7 +149,7 @@ Cross-cutting details worth knowing:
   add network calls that bypass this seam if you want them testable.
 - `playlist.Video` is a frozen dataclass — pass it around by value, never mutate.
 - Search (`playlist.search`) only filters the *display* model; it does not change the player's
-  shuffled order. Next/prev always walk the full shuffled order.
+  order. Next/prev always walk the full current order (shuffled or canonical).
 
 ## License
 

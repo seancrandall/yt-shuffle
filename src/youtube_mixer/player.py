@@ -80,6 +80,13 @@ class PlayerView(QWebEngineView):
         ids_js = "[" + ",".join(repr(i) for i in video_ids) + "]"
         self._run(f"window.playList && window.playList({ids_js}, {int(index)});")
 
+    def set_list(self, video_ids: list[str], index: int = 0) -> None:
+        """Reorder the player's list *without* reloading the current video: sets the new
+        play order and the current index, leaving what's playing untouched (used by the
+        shuffle toggle so playback isn't interrupted)."""
+        ids_js = "[" + ",".join(repr(i) for i in video_ids) + "]"
+        self._run(f"window.setList && window.setList({ids_js}, {int(index)});")
+
     def next(self) -> None:
         self._run("window.next && window.next();")
 

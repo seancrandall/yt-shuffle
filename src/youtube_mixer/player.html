@@ -106,6 +106,14 @@
       whenReady(() => playIndex(start));
     };
 
+    // Replace the play order without reloading the current video (shuffle toggle): just
+    // re-point the current index so next/prev follow the new order from where we are.
+    window.setList = function (ids, index) {
+      currentIds = ids || [];
+      currentIndex = index || 0;
+      notifyCurrent();
+    };
+
     window.next = function () { whenReady(() => playIndex(currentIndex + 1)); };
     window.prev = function () { whenReady(() => playIndex(currentIndex - 1)); };
     window.setAutoAdvance = function (v) { autoAdvance = !!v; };
