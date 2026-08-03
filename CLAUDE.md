@@ -159,13 +159,17 @@ The app is a Qt desktop app split into data, player, and UI layers. The key cros
   (top bar + controls + list) so the player fills the window — the larger player is what lets
   YouTube actually serve 1080p/1440p. **F11** toggles `showFullScreen`/`showNormal`;
   **Esc** exits fullscreen then cinema. `_apply_layout` hides chrome iff fullscreen or cinema.
-- **Media hotkeys:** `MainWindow` installs itself as a `QApplication` event filter for
-  **Space** (play/pause), **Ctrl+→** (next), **Ctrl+←** (previous), **Ctrl+S** (shuffle/unshuffle
-  toggle). Space is *deferred* to the YouTube embed when the player has focus (the embed already
-  play/pauses on Space, so toggling ourselves too would cancel out) and to buttons/checkboxes
-  (Space activates them). All hotkeys are suppressed while a text field (the search box or the
-  editable playlist combo) has focus so typing/editing still works. Play/pause toggles via
-  `player.html` `window.togglePlay` (checks `getPlayerState()` → `playVideo`/`pauseVideo`).
+- **Media hotkeys:** window-scoped `QShortcut`s on `MainWindow` for **Space** (play/pause),
+  **Ctrl+→** (next), **Ctrl+←** (previous), **Ctrl+S** (shuffle/unshuffle toggle) — the same
+  mechanism F11/Esc already use. Space is a window shortcut, so when a text field (the search box
+  or editable playlist combo) has focus the slot re-posts a Space to it (so the space is typed)
+  instead of toggling play; otherwise it toggles via `player.html` `window.togglePlay`
+  (`getPlayerState()` → `playVideo`/`pauseVideo`). **Do not** reimplement these with an
+  application-wide `installEventFilter` on `QApplication`: Qt routes QtWebEngine's internal
+  `QWebEngineUrlRequestJob` events through application event filters, and PySide segfaults in
+  `getWrapperForQObject` trying to wrap that job during the localhost player-page load (the
+  original hotkey implementation crashed on launch this way). `QShortcut` never sees those
+  internal objects, so it's safe.
 
 Cross-cutting details worth knowing:
 - `api.fetch_playlist` and `api.fetch_playlist_meta` both accept an injected `httpx.Client`

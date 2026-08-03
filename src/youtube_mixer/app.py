@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import httpx
 from PySide6.QtCore import QByteArray, QEvent, QSize, Qt, QThread, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -107,9 +107,15 @@ class MainWindow(QMainWindow):
                 self.restoreGeometry(QByteArray(bytes.fromhex(geo)))
             except (ValueError, TypeError):
                 pass
-        # Application-wide key filter for media hotkeys (Space/Ctrl+arrows/Ctrl+S) so they
-        # work regardless of focus, while leaving typing in the search/combo box alone.
-        QApplication.instance().installEventFilter(self)
+        # Media hotkeys are QShortcuts (window-scoped) — the same mechanism F11/Esc use.
+        # Do NOT use an application-wide event filter for these: Qt routes QtWebEngine's
+        # internal QWebEngineUrlRequestJob events through application event filters, and
+        # PySide crashes (getWrapperForQObject, segfault) trying to wrap that job during the
+        # localhost player-page load. QShortcut doesn't see those internal objects.
+        QShortcut(QKeySequence("Ctrl+Right"), self, activated=self.player.next)
+        QShortcut(QKeySequence("Ctrl+Left"), self, activated=self.player.prev)
+        QShortcut(QKeySequence("Ctrl+S"), self, activated=self.on_toggle_shuffle)
+        QShortcut(QKeySequence("Space"), self, activated=self._on_space_hotkey)
         # Auto-load the last-used playlist on launch (but don't auto-play it). Skipped when
         # there's no stored API key (we don't want to prompt on launch) or no last playlist.
         last = get_last_playlist_id()
@@ -515,37 +521,18 @@ class MainWindow(QMainWindow):
             return True
         return False
 
-    def eventFilter(self, obj, event):
-        """Media hotkeys that work from anywhere, without fighting the search/combo box.
+    def _on_space_hotkey(self) -> None:
+        """Space = play/pause, except when a text field has focus (then it should type a space).
 
-        Space        play/pause (but if the player itself has focus, let the YouTube embed
-                     handle Space — otherwise both it and we would toggle and cancel out).
-        Ctrl+Right   next track      Ctrl+Left   previous track
-        Ctrl+S       shuffle / unshuffle toggle
-
-        All are ignored while typing in a text field so the keys still type/edit normally.
+        The Space QShortcut consumes the key before the focus widget, so when the user is
+        typing in the search/playlist box we re-post a Space to it so the space is typed.
+        Otherwise toggle play/pause — the YouTube embed never sees the key (the shortcut
+        consumed it), so there's no double-toggle to worry about.
         """
-        if event.type() != QEvent.KeyPress:
-            return False
         focus = QApplication.focusWidget()
         if self._is_text_input(focus):
-            return False  # never hijack typing
-        key = event.key()
-        mods = event.modifiers()
-        if key == Qt.Key_Space and mods == Qt.NoModifier:
-            # The embedded player already play/pauses on Space when it has focus; let it, to
-            # avoid a double-toggle. Buttons/checkboxes also use Space (activate/toggle).
-            if focus is self.player or isinstance(focus, (QPushButton, QCheckBox, QComboBox)):
-                return False
-            self.player.toggle_play_pause()
-            return True
-        if key == Qt.Key_Right and mods == Qt.ControlModifier:
-            self.player.next()
-            return True
-        if key == Qt.Key_Left and mods == Qt.ControlModifier:
-            self.player.prev()
-            return True
-        if key == Qt.Key_S and mods == Qt.ControlModifier:
-            self.on_toggle_shuffle()
-            return True
-        return False
+            QApplication.postEvent(
+                focus, QKeyEvent(QEvent.KeyPress, Qt.Key_Space, Qt.NoModifier, " ")
+            )
+            return
+        self.player.toggle_play_pause()
