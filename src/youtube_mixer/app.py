@@ -7,7 +7,7 @@ responsive; the resulting videos are shuffled (full-coverage Fisher–Yates) bef
 from __future__ import annotations
 
 import httpx
-from PySide6.QtCore import QSize, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, QThread, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -94,6 +94,9 @@ class MainWindow(QMainWindow):
         self._thread: LoadThread | None = None
         self._pending_input: str = ""
         self._build_ui()
+        # Application-wide key filter for media hotkeys (Space/Ctrl+arrows/Ctrl+S) so they
+        # work regardless of focus, while leaving typing in the search/combo box alone.
+        QApplication.instance().installEventFilter(self)
 
     def _build_ui(self) -> None:
         central = QWidget()
@@ -450,3 +453,46 @@ class MainWindow(QMainWindow):
             # Drop back to 720p (a safe default for a normal-sized player).
             idx = self.quality_combo.findData("hd720")
             self.quality_combo.setCurrentIndex(max(0, idx))  # fires on_quality_changed
+
+    def _is_text_input(self, widget) -> bool:
+        """True when the focused widget is a text entry field (so we leave keystrokes alone)."""
+        if isinstance(widget, QLineEdit):
+            return True
+        if isinstance(widget, QComboBox) and widget.isEditable():
+            return True
+        return False
+
+    def eventFilter(self, obj, event):
+        """Media hotkeys that work from anywhere, without fighting the search/combo box.
+
+        Space        play/pause (but if the player itself has focus, let the YouTube embed
+                     handle Space — otherwise both it and we would toggle and cancel out).
+        Ctrl+Right   next track      Ctrl+Left   previous track
+        Ctrl+S       shuffle / unshuffle toggle
+
+        All are ignored while typing in a text field so the keys still type/edit normally.
+        """
+        if event.type() != QEvent.KeyPress:
+            return False
+        focus = QApplication.focusWidget()
+        if self._is_text_input(focus):
+            return False  # never hijack typing
+        key = event.key()
+        mods = event.modifiers()
+        if key == Qt.Key_Space and mods == Qt.NoModifier:
+            # The embedded player already play/pauses on Space when it has focus; let it, to
+            # avoid a double-toggle. Buttons/checkboxes also use Space (activate/toggle).
+            if focus is self.player or isinstance(focus, (QPushButton, QCheckBox, QComboBox)):
+                return False
+            self.player.toggle_play_pause()
+            return True
+        if key == Qt.Key_Right and mods == Qt.ControlModifier:
+            self.player.next()
+            return True
+        if key == Qt.Key_Left and mods == Qt.ControlModifier:
+            self.player.prev()
+            return True
+        if key == Qt.Key_S and mods == Qt.ControlModifier:
+            self.on_toggle_shuffle()
+            return True
+        return False

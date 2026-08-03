@@ -116,6 +116,14 @@
 
     window.next = function () { whenReady(() => playIndex(currentIndex + 1)); };
     window.prev = function () { whenReady(() => playIndex(currentIndex - 1)); };
+    // Toggle play/pause based on current state (Space hotkey from native).
+    window.togglePlay = function () {
+      whenReady(() => {
+        if (!player) return;
+        if (player.getPlayerState() === YT.PlayerState.PLAYING) player.pauseVideo();
+        else player.playVideo();
+      });
+    };
     window.setAutoAdvance = function (v) { autoAdvance = !!v; };
     window.setQuality = function (q) {
       currentQuality = q || "auto";

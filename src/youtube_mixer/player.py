@@ -93,6 +93,10 @@ class PlayerView(QWebEngineView):
     def prev(self) -> None:
         self._run("window.prev && window.prev();")
 
+    def toggle_play_pause(self) -> None:
+        """Play or pause depending on current state (Space hotkey)."""
+        self._run("window.togglePlay && window.togglePlay();")
+
     def set_auto_advance(self, enabled: bool) -> None:
         flag = "true" if enabled else "false"
         self._run(f"window.setAutoAdvance && window.setAutoAdvance({flag});")
